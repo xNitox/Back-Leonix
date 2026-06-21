@@ -1,1 +1,5 @@
 node_modules/
+sqlEjecutados/
+.env
+.env.local
+.env.*.local
