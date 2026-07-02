@@ -16,6 +16,7 @@ export const handleLogin = async (req: Request, res: Response) => {
             const { data, error } = await supabaseAdmin.auth.signInWithPassword({
                 email: user,
                 password: password,
+                
             });
             console.log('LOGIN SUPABASE ERROR', error);
             console.log('LOGIN SUPABASE DATA', data);
@@ -25,6 +26,12 @@ export const handleLogin = async (req: Request, res: Response) => {
             const payloadAdmin = {
                 email: data.session
             };
+
+            const {data: commerce, error: commerceError} = await supabaseAdmin
+            .from('commerce')
+            .select('id')
+            .eq('id', data.user.id)
+            .single();
 
             const token = jwt.sign(
                 payloadAdmin,
@@ -36,7 +43,8 @@ export const handleLogin = async (req: Request, res: Response) => {
                 role: 'owner',
                 token: token,
                 user: data.user,
-                session: data.session
+                session: data.session,
+                commerce_id: commerce?.id
             });
 
         }
