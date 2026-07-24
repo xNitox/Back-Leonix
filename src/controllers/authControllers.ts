@@ -40,6 +40,7 @@ export const handleLogin = async (req: Request, res: Response) => {
             );
             // Retornamos los datos del usuario dueño y su sesión
             return res.status(200).json({
+                id: data.user.id,
                 role: 'owner',
                 token: token,
                 user: data.user,
