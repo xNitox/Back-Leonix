@@ -1,10 +1,17 @@
 import type { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
-import { supabaseAdmin } from '../supabaseClient.js';
+import { supabaseAdmin, supabasePublish } from '../supabaseClient.js';
+import bcrypt from 'bcrypt';
 
+//Login user
 //trae user y password de la respuesta del formulario del front "Login"
 export const handleLogin = async (req: Request, res: Response) => {
+    const secret = process.env.JWT_SECRET;
+    //validacion de jwt
     const { user, password, rutCommerce } = req.body;
+    if (!secret) {
+        throw new Error('JWT_SECRET no está definido')
+    }
     //validamos si user y password enviado desde front es igual al de supabase
 
     if (!user || !password) {
@@ -13,10 +20,10 @@ export const handleLogin = async (req: Request, res: Response) => {
     try {
         //verificar si es un email (login dueños email + contraseña)
         if (user.includes('@')) {
-            const { data, error } = await supabaseAdmin.auth.signInWithPassword({
+            const { data, error } = await supabasePublish.auth.signInWithPassword({
                 email: user,
                 password: password,
-                
+
             });
             console.log('LOGIN SUPABASE ERROR', error);
             console.log('LOGIN SUPABASE DATA', data);
@@ -24,18 +31,25 @@ export const handleLogin = async (req: Request, res: Response) => {
 
             if (error) return res.status(401).json({ message: 'Credenciales incorrectas' });
             const payloadAdmin = {
-                email: data.session
+                id: data.user.id,
+                role: 'owner'
             };
 
-            const {data: commerce, error: commerceError} = await supabaseAdmin
-            .from('commerce')
-            .select('id')
-            .eq('id', data.user.id)
-            .single();
+            const { data: commerce, error: commerceError } = await supabaseAdmin
+                .from('commerce')
+                .select('id,name_commerce,owner_name,owner_last_name')
+                .eq('owner_id', data.user.id)
+                .maybeSingle();
+            console.log('nombre', commerce?.name_commerce, commerce?.owner_name);
+            console.log('ID que viene del login:', data.user.id);
+            console.log('COMMERCE CONSULTA NOMBRES:', commerce);       // ¿{ id: '...' } o null?
+            console.log('COMMERCE ERROR:', commerceError);  // ¿algún error?
+
+
 
             const token = jwt.sign(
                 payloadAdmin,
-                process.env.JWT_SECRET || '1',
+                secret,
                 { expiresIn: '12h' }
             );
             // Retornamos los datos del usuario dueño y su sesión
@@ -43,10 +57,16 @@ export const handleLogin = async (req: Request, res: Response) => {
                 id: data.user.id,
                 role: 'owner',
                 token: token,
-                user: data.user,
-                session: data.session,
-                commerce_id: commerce?.id
+                user: {
+                    id: data.user.id,
+                    email: data.user.email,
+                },
+                commerce_id: commerce?.id,
+                name_commerce: commerce?.name_commerce,
+                owner_name: commerce?.owner_name,
+                owner_last_name: commerce?.owner_last_name
             });
+
 
         }
         // verificamos si es con rut (login de staff: cajero etc..)
@@ -61,21 +81,28 @@ export const handleLogin = async (req: Request, res: Response) => {
             const { data: commerce, error: commerceError } = await supabaseAdmin
                 .from('commerce')
                 .select('id')
-                .eq('rut', cleanRutCommerce)
-                .single()
+                .eq('rut_commerce', cleanRutCommerce)
+                .maybeSingle()
             if (commerceError || !commerce) {
                 return res.status(401).json({ message: 'El comercio ingresado no existe' });
             }
+
             const { data: staffMember, error: staffError } = await supabaseAdmin
                 .from('staff')
-                .select('id,name,last_name,role,commerce_id,rut,pin')
+                .select('id,name,last_name,role,commerce_id,rut,pin,commerce!inner(rut_commerce),code_cashier')
                 .eq('commerce_id', commerce.id)
-                .eq('rut', cleanStaffRut)
-                .eq('pin', password)
-                .single()
+                .eq('commerce.rut_commerce', cleanRutCommerce)
+                .eq('code_cashier',user)
+                .maybeSingle()
             if (staffError || !staffMember) {
                 return res.status(401).json({ message: 'RUT de personal incorrecto o PIN para este comercio' })
             }
+            //comienza bcrypt para comparar contraseña ingresada vs la de la tabla pin
+            const pinValido = await bcrypt.compare(password, staffMember.pin);
+            if (!pinValido) {
+                // Si no coinciden, cortas la ejecución y devuelves un error de credenciales
+                return res.status(401).json({ message: "El código o el PIN son incorrectos" });
+            }  //termina bcrypt
             const payload = {
                 id: staffMember.id,
                 role: staffMember.role,
@@ -84,8 +111,8 @@ export const handleLogin = async (req: Request, res: Response) => {
             // Creamos el token usando nuestra clave secreta y le damos validez por 12 horas (un turno de trabajo)
             const token = jwt.sign(
                 payload,
-                process.env.JWT_SECRET || 'secreto local de emergencia',
-                { expiresIn: '12' }
+                secret,
+                { expiresIn: '12h' }
             );
 
             // Retornamos los datos del staff logueado de forma exitosa
@@ -102,6 +129,7 @@ export const handleLogin = async (req: Request, res: Response) => {
             });
 
         }
+
     } catch (error) {
         console.error('Error en el controllador del login', error);
         return res.status(500).json({ message: 'Error interno del servidor' });

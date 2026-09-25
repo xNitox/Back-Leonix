@@ -1,26 +1,26 @@
 import type { Request, Response } from 'express';
 import { supabaseAdmin } from '../supabaseClient.js';
-
 //Controlador para registrar el comercio nuevo en la bd, datos recibidos desde el frontend
 
 // interfaz para que typescript sepa que datos deban recibirse y de que tipo
 interface registerBusinessProps {
-  id: string,
   name_commerce: string,
   owner_name: string,
   owner_last_name: string,
   rut_commerce: string,
   phone: string,
   email: string,
-  city: string
+  city: string,
 }
-
+interface registerMoreOwnerId extends registerBusinessProps{
+  owner_id: string
+}
 
 // funcion para que recibe los datos , los limpia con trim y los envia a la bd , además de responder el estado de la peticion al frontend
 export const registerBusinessController = async (req: Request, res: Response) => {
-  const body: registerBusinessProps = req.body;
-  const campos: (keyof registerBusinessProps)[] = ['id', 'name_commerce', 'owner_name', 'owner_last_name', 'rut_commerce', 'phone', 'email',
-    'city'
+  const body: registerMoreOwnerId = {...req.body, owner_id:req.userId}
+  const campos: (keyof registerBusinessProps)[] = ['name_commerce','owner_name', 'owner_last_name', 'rut_commerce', 'phone', 'email',
+    'city',
   ]
   const hasEmptyField = campos.some(field => {
     const value = req.body[field]

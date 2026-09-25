@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { getProductsSale } from "../controllers/product.sale.api.js";
-import { handleLogin } from "../controllers/authControllers.js";
+import { handleLogin } from "../controllers/auth.controllers.js";
 
 
 

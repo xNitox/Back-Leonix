@@ -1,4 +1,4 @@
-import { createStaffController } from "../controllers/createStaffController.js";
+import { createStaffController } from "../controllers/createStaff.controller.js";
 import { Router } from "express";
 
 
@@ -8,5 +8,5 @@ import { Router } from "express";
 
 const createStaffRoute = Router();
 
-createStaffRoute.post('/CreateStaff',createStaffController);
+createStaffRoute.post('/CreateStaff', createStaffController);
 export default createStaffRoute;
